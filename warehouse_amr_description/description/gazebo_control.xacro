@@ -21,7 +21,8 @@
             <robot_base_frame>base_link</robot_base_frame>
 
             <publish_odom>true</publish_odom>
-            <publish_odom_tf>true</publish_odom_tf>
+            <!-- truth_localization owns odom->base_link in simulation. -->
+            <publish_odom_tf>false</publish_odom_tf>
             <publish_wheel_tf>true</publish_wheel_tf>
 
         </plugin>

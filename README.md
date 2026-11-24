@@ -23,7 +23,7 @@ ROS 2 Humble · Gazebo Classic · 差速底盘 · 一条命令起全栈。
 
 | 项 | 现在 |
 | --- | --- |
-| 定位-规划-控制 | Nav2 + AMCL + ros2_control + Gazebo Classic，`bringup_sim.launch.py` 一条命令起全栈 |
+| 定位-规划-控制 | Gazebo 真值定位 + Nav2 + ros2_control + Gazebo Classic，`bringup_sim.launch.py` 一条命令起全栈 |
 | 任务层 | 与 ROS 解耦的状态机（每段航点重试上限 + 整单超时看门狗）；24 个 pytest，CI 里 0.2 s 跑完 |
 | 度量层 | 随机 25 个目标压测 → JSONL → 成功率 / P50 / P95 / 失败原因（超时·取消·被拒），脚本回写 README |
 | 修过的坑 | `spawner.py`→`spawner`、Foxy 时代导航节点列表、AMCL 初始位姿落在地图原点；`CHANGELOG.md` 逐条记根因 |
@@ -56,9 +56,14 @@ sudo apt install -y ros-humble-navigation2 ros-humble-nav2-bringup \
 git clone https://github.com/cccjj55/ros2-warehouse-amr.git ~/ros2_ws/src/ros2-warehouse-amr
 cd ~/ros2_ws && colcon build --symlink-install && source install/setup.bash
 
-ros2 launch warehouse_amr_description bringup_sim.launch.py     # Gazebo + AMCL + Nav2 + RViz
+ros2 launch warehouse_amr_description bringup_sim.launch.py     # Gazebo 真值定位 + Nav2 + RViz
 ros2 launch warehouse_amr_mission mission.launch.py             # 跑 3 个 demo 配送任务
+# 另开终端：记录路径点、机器人真值位置、路径误差和 Nav2 到达误差
+ros2 run warehouse_amr_mission navigation_trace
 ```
+
+`navigation_trace` 订阅 RViz `/goal_pose`、Nav2 `/plan` 和 `/local_plan`、
+Gazebo `/gazebo/model_states` 及 `/navigate_to_pose/_action/status`。以 JSON 日志输出路径点及其到真值位置的距离、机器人运动位置和最近路径点误差；Nav2 报告成功时输出目标与真实到达位置（含 XY 距离及航向误差）。默认按 1 Hz 输出运动数据，可用 `-p output_rate_hz:=2.0` 调整频率。
 
 容器：
 
@@ -75,9 +80,11 @@ docker run --rm -it warehouse-amr:humble ros2 launch warehouse_amr_description b
 graph LR
     A[Gazebo world<br/>10 m × 6 m 货架] --> B[gazebo_ros2_control]
     B --> C[diff_drive_controller]
-    C -->|/odom,/tf| D[AMCL]
-    E[map_server<br/>maps/warehouse.yaml] --> D
-    D --> F[planner_server<br/>NavFn]
+    C -->|/odom (速度)| G
+    A -->|/gazebo/model_states| D
+    D -->|/amcl_pose, odom->base_link| F[Nav2 planner_server<br/>NavFn]
+    D -->|map->odom 恒等 TF| F
+    E[map_server<br/>maps/warehouse.yaml] --> F
     F --> G[controller_server<br/>DWB 20 Hz]
     H[bt_navigator] --> F
     H --> G
@@ -96,7 +103,7 @@ graph LR
 | --- | --- | --- |
 | 差速底盘 URDF/Xacro + ros2_control 仿真 | ✅ | `warehouse_amr_description/description/` |
 | 仓储世界（货架 / 通道 / 充电座） | ✅ | `worlds/warehouse.world` |
-| Nav2 定位 + 规划 + 控制（Humble 参数） | ✅ | `config/nav2_params.yaml` |
+| Gazebo 真值定位 + Nav2 规划 + 控制（Humble 参数） | ✅ | `launch/navigation_launch.py` + `scripts/truth_localization.py` |
 | 建图模式（slam_toolbox 异步） | ✅ | `launch/slam_launch.launch.py` |
 | 任务状态机（重试 / 超时 / 失败原因） | ✅ | `mission_fsm.py` + 24 单测 |
 | 端到端随机目标压测 + 指标落盘 | ✅ | `bench_goals.py`, `metrics.py` |
@@ -156,10 +163,10 @@ ros2-warehouse-amr/
 
 ## 工程决策（面试里真正会被追问的部分）
 
-**1. 导航栈包装官方 `nav2_bringup`，不自己维护节点列表。**
+**1. Nav2 导航节点复用官方 launch，仿真定位由 Gazebo 真值提供。**
 旧版是手抄的 Foxy launch（`nav2_recoveries/recoveries_server`、`default_bt_xml_filename`、
 `navigate_w_replanning_and_recovery.xml`），在 Humble 上一个都起不来，且没有 `map_server`/`amcl`。
-现在 `launch/navigation_launch.py` 只做参数覆写，版本漂移交给上游，diff 可审查。
+仿真不启动 AMCL：`truth_localization.py` 用 `/gazebo/model_states` 发布真值 `odom->base_link`，并发布恒等 `map->odom` 与 `/amcl_pose` 真值位姿；地图服务器和导航节点仍使用 Nav2 官方实现。
 
 **2. 状态机与 ROS 解耦。**
 `mission_fsm.py` 只依赖 `enum`/`dataclasses`，因此重试预算、超时、非法事件这些最容易写错的
@@ -174,8 +181,8 @@ ros2-warehouse-amr/
 避免"改了参数没重测就改 README"。
 
 **5. 参数文件从上游模板重生成，改动写在文件头。**
-`config/nav2_params.yaml` 顶部列了 4 处 delta（`robot_radius`、`max_vel_x`、`xy_goal_tolerance`、
-AMCL 初始位姿）。下次同步上游时不用猜。
+`config/nav2_params.yaml` 顶部列了参数 delta（`robot_radius`、`max_vel_x`、`xy_goal_tolerance` 等）。
+AMCL 参数仍保留供其他定位流程使用，但仿真全栈默认以 Gazebo 真值作为定位输入。
 
 ## Roadmap
 

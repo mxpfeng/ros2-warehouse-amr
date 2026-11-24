@@ -24,9 +24,9 @@ graph TB
         URDF[description/*.xacro]
     end
 
-    subgraph nav["Nav2（官方 bringup，本仓库只提供参数与地图）"]
+    subgraph nav["Nav2（官方导航节点 + Gazebo 真值定位）"]
         MS[map_server]
-        AMCL[amcl]
+        TRUTH[truth_localization]
         PLAN[planner_server / NavFn]
         CTRL[controller_server / DWB]
         BT[bt_navigator]
@@ -47,9 +47,11 @@ graph TB
     GR --> CM
     CM --> DC
     CM --> JB
-    DC -->|/odom, /tf| AMCL
-    MS --> AMCL
-    AMCL -->|map->odom| PLAN
+    DC -->|/odom| CTRL
+    W -->|/gazebo/model_states| TRUTH
+    TRUTH -->|/amcl_pose, odom->base_link| PLAN
+    TRUTH -->|map->odom identity| PLAN
+    MS --> PLAN
     PLAN --> CTRL
     BT --> PLAN
     BT --> CTRL
@@ -91,8 +93,8 @@ graph TB
 | 项 | 旧版 | 现在 |
 | --- | --- | --- |
 | controller spawner | `spawner.py`（Humble 无此可执行） | `spawner` |
-| 导航启动 | 手抄 Foxy 节点列表：`nav2_recoveries/recoveries_server`、`default_bt_xml_filename`、`navigate_w_replanning_and_recovery.xml` | 包装 `nav2_bringup/bringup_launch.py` |
-| 地图 | 无 map_server、无 map 文件 | `maps/warehouse.yaml` + AMCL 初始位姿 |
+| 导航启动 | 手抄 Foxy 节点列表：`nav2_recoveries/recoveries_server`、`default_bt_xml_filename`、`navigate_w_replanning_and_recovery.xml` | 使用 Nav2 官方导航 launch；单独启动 map_server，避免 AMCL 定位 |
+| 地图 | 无 map_server、无 map 文件 | `maps/warehouse.yaml` + Gazebo 真值定位 |
 | 世界 | launch 里没有 `world` 参数，README 却写 `world:=warehouse` | `worlds/warehouse.world` + `world:=` 参数 |
 | 参数文件 | Foxy 参数（`amcl_map_client`、`recoveries_server`） | 由 `nav2_bringup` Humble 官方模板重生成，改动列在文件头 |
 | 任务层 | README 声称有，代码不存在 | `warehouse_amr_mission` 包 + 24 个单测 |
@@ -100,7 +102,7 @@ graph TB
 ## 4. 坐标系与单位约定
 
 - 地图：10 m × 6 m，`resolution: 0.05`，`origin: [0, 0, 0]`，占位：`255` 自由 / `0` 占据（`maps/warehouse.pgm`）。
-- 世界与地图**共用同一套坐标**，因此 AMCL 初始位姿可以硬编码为 `(0.9, 0.6, 0)`；换真实建图后必须删掉 `nav2_params.yaml` 里的 `set_initial_pose`。
+- 仿真世界与地图**共用同一套坐标**；真值定位发布恒等 `map->odom` 和 Gazebo 真值 `odom->base_link`，并在 `/amcl_pose` 发布真值。里程计只提供 `/odom` 速度，不再广播重复 TF。该定位方式仅用于 Gazebo 仿真。
 - 车体：0.335 × 0.265 m 底盘，轮半径 0.033 m，轮距 0.297 m，`base_footprint` 贴地、`base_link` 抬高 0.138 m。costmap 用 `robot_radius: 0.25`（含安全余量），不用 footprint 多边形。
 
 ## 5. 度量口径（重要）
@@ -109,4 +111,4 @@ graph TB
 
 它**不**测：定位误差（需要真值位姿）、轨迹平滑度、能耗、多机调度效率。
 
-因此 README 里不会出现"定位精度 < 3 cm"这类无法由本仓库脚本产出的数字。要写定位误差，就得先有一个真值来源（Gazebo `/gazebo/model_states` 里的真实位姿 vs AMCL `/amcl_pose`），脚本见 `docs/BENCHMARK.md` 的"扩展度量"一节。
+默认仿真把 Gazebo 真值直接作为定位输入，不能用 `/amcl_pose` 评估 AMCL 误差。要写定位误差，必须单独运行 AMCL 并与 Gazebo `/gazebo/model_states` 对比；采集骨架见 `docs/BENCHMARK.md` 的"扩展度量"一节。

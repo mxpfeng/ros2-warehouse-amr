@@ -26,6 +26,7 @@ setup(
         'console_scripts': [
             'mission_server = warehouse_amr_mission.mission_server:main',
             'bench_goals = warehouse_amr_mission.bench_goals:main',
+            'navigation_trace = warehouse_amr_mission.navigation_trace:main',
         ],
     },
 )

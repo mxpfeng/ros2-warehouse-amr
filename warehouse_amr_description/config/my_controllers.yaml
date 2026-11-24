@@ -22,6 +22,8 @@ diff_cont:
     wheel_radius: 0.033
 
     use_stamped_vel: false
+    # truth_localization publishes odom->base_link from Gazebo ground truth.
+    enable_odom_tf: false
 
     # open_loop: false    
 
@@ -34,7 +36,6 @@ diff_cont:
     # pose_covariance_diagonal: x
     # twist_covariance_diagonal: x
     # open_loop: x
-    # enable_odom_tf: x
 
     # cmd_vel_timeout: x
     # publish_limited_velocity: x

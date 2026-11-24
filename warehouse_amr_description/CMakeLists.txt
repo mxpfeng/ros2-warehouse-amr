@@ -7,10 +7,15 @@ endif()
 
 find_package(ament_cmake REQUIRED)
 
-# Everything in this package is data: xacro, yaml, launch, worlds, maps.
+# Install the robot description, configuration, launch files and simulation assets.
 install(
   DIRECTORY config description launch worlds maps
   DESTINATION share/${PROJECT_NAME}
+)
+
+install(
+  PROGRAMS scripts/truth_localization.py
+  DESTINATION lib/${PROJECT_NAME}
 )
 
 if(BUILD_TESTING)

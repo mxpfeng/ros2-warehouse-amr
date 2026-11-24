@@ -3,8 +3,8 @@
   Warehouse world for Gazebo Classic.
 
   Coordinates intentionally match warehouse_amr_description/maps/warehouse.yaml
-  (10 m x 6 m, origin bottom-left, 0.05 m/cell) so that AMCL can be seeded at a
-  known pose in simulation. Geometry is defined inline: no `model://` downloads,
+  (10 m x 6 m, origin bottom-left, 0.05 m/cell) so the map and Gazebo truth pose
+  share the same coordinates. Geometry is defined inline: no `model://` downloads,
   so the world loads offline and in CI.
 
   Layout
@@ -21,6 +21,13 @@
       <real_time_factor>1.0</real_time_factor>
       <real_time_update_rate>1000</real_time_update_rate>
     </physics>
+
+    <plugin name="gazebo_ros_state" filename="libgazebo_ros_state.so">
+      <ros>
+        <namespace>/gazebo</namespace>
+      </ros>
+      <update_rate>50.0</update_rate>
+    </plugin>
 
     <light name="sun" type="directional">
       <cast_shadows>1</cast_shadows>
@@ -173,6 +180,31 @@
         <pose>5.0 -6.0 9.0 0 0.9 1.57</pose>
       </camera>
     </gui>
+
+    <!-- Box obstacle: circles the dock area. Pure model (has real
+         collision), so it both blocks the laser and collides physically. -->
+    <model name="dyn_box_1">
+      <static>false</static>
+      <pose>4.5 4.5 0.25 0 0 0</pose>
+      <link name="link">
+        <inertial>
+          <mass>5.0</mass>
+          <inertia><ixx>0.1</ixx><iyy>0.1</iyy><izz>0.1</izz></inertia>
+        </inertial>
+        <collision name="collision">
+          <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>0.5 0.5 0.5</size></box></geometry>
+          <material><ambient>0.9 0.45 0.1 1</ambient><diffuse>0.9 0.45 0.1 1</diffuse></material>
+        </visual>
+      </link>
+      <plugin name="animated_box" filename="libAnimatedBoxPlugin.so">
+        <center>2.5 4.5</center>
+        <radius>0.8</radius>
+        <period>8.0</period>
+      </plugin>
+    </model>
 
   </world>
 </sdf>

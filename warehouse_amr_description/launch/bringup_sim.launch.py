@@ -1,4 +1,4 @@
-"""One-command full stack: Gazebo + robot + Nav2 (AMCL on the committed map) + RViz.
+"""One-command full stack: Gazebo + robot + truth-localized Nav2 + RViz.
 
     ros2 launch warehouse_amr_description bringup_sim.launch.py
 
@@ -25,7 +25,10 @@ def generate_launch_description():
     world = LaunchConfiguration('world')
     gui = LaunchConfiguration('gui')
     rviz = LaunchConfiguration('rviz')
-    map_yaml = LaunchConfiguration('map')
+    #map_yaml = LaunchConfiguration('map')
+    map_default = os.path.join(pkg_share, 'maps', 'warehouse.yaml')
+    params_default = os.path.join(pkg_share, 'config', 'nav2_params.yaml')
+
 
     sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(pkg_share, 'launch', 'launch_sim.launch.py')),
@@ -36,9 +39,8 @@ def generate_launch_description():
         }.items(),
     )
 
-    # Nav2 brings up map_server + amcl + planner + controller + bt_navigator.
-    # Give Gazebo/the model a moment first, otherwise AMCL updates against an
-    # empty scan stream and parks itself in an unrecoverable particle cloud.
+    # Give Gazebo and the robot model time to start before truth localization
+    # and Nav2 begin.
     nav = TimerAction(
         period=10.0,
         actions=[
@@ -48,7 +50,10 @@ def generate_launch_description():
                 ),
                 launch_arguments={
                     'use_sim_time': use_sim_time,
-                    'map': map_yaml,
+                    #'map': map_yaml,
+                    'map': map_default,            # ← 直接传字符串路径，不通过 LaunchConfiguration
+                    'params_file': params_default,  # ← 补上 params_file
+                    'autostart': 'True',
                 }.items(),
             )
         ],
@@ -64,7 +69,7 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        DeclareLaunchArgument('use_sim_time', default_value='true'),
+        DeclareLaunchArgument('use_sim_time', default_value='true', description='Use simulation (Gazebo) clock if true'),
         DeclareLaunchArgument(
             'world',
             default_value=os.path.join(pkg_share, 'worlds', 'warehouse.world')),

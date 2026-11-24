@@ -72,8 +72,7 @@ def generate_launch_description():
     spawn_entity_node = Node(
         package='gazebo_ros',
         executable='spawn_entity.py',
-        # Spawn inside the free aisle at the map origin, not in the wall corner:
-        # AMCL seeds from this pose, so it must be collision free.
+        # Spawn inside the free aisle at the map origin, not in the wall corner.
         arguments=[
             '-topic', 'robot_description',
             '-entity', 'warehouse_amr',

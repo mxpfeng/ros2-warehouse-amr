@@ -28,17 +28,18 @@ DWB 在 Humble 上默认可用、参数少、CPU 友好，配合 20 Hz 控制周
 
 ### 4. 你的定位精度是多少？怎么测的？
 
-诚实的答案：仿真里 AMCL 在静态定点能到厘米级，但**动态跟踪误差没有在真机上测**，
-所以 README 不报具体数字。要测就得有真值：`/gazebo/model_states` 对比 `/amcl_pose`，
-报 RMSE + P95（`docs/BENCHMARK.md` 有采集骨架）。
+当前默认仿真用 Gazebo 真值定位，**没有测 AMCL 定位精度**，也不声称 AMCL 达到某个误差。
+要评估 AMCL，需单独启动 AMCL，再将其位姿与 `/gazebo/model_states` 的真值对齐，
+报告 RMSE + P95（`docs/BENCHMARK.md` 有采集骨架）。
 
 （不要说"< 3 cm"然后拿不出数据——这是最容易翻车的一题。）
 
 ### 5. Nav2 为什么需要 lifecycle_manager？
 
 Nav2 节点是有状态的（unconfigured → inactive → active），必须按序 configure/activate：
-`map_server` 先加载地图，`amcl` 才能订阅；`planner` 先拿到 costmap，`bt_navigator` 才能规划。
-我们直接 include `nav2_bringup`，manager 由它起，`autostart:=true`。
+`map_server` 先加载地图，`planner` 先拿到 costmap，`bt_navigator` 才能规划。
+默认仿真用独立 lifecycle manager 管理 map_server，不启动 AMCL；导航节点仍由 Nav2 官方 launch 启动，
+`autostart:=true`。
 
 ### 6. 状态机为什么不用行为树 / SMACH？
 
@@ -62,7 +63,7 @@ Nav2 的 recovery（spin/backup/wait）解决"局部卡住"，不解决"这单�
 
 当前是纯轮式里程计（`diff_drive_controller`），没有 IMU 融合——这是已知短板。
 补法：`robot_localization` 的 EKF 节点，输入 `/odom` + `/imu/data`（需在 xacro 里加 IMU 插件），
-输出 `/odometry/filtered` 给 AMCL 当 `odom` 源。Roadmap v0.3。
+输出 `/odometry/filtered` 给 AMCL 当 `odom` 源（如启用 AMCL 定位）。Roadmap v0.3。
 
 ### 10. 多机怎么扩展？
 

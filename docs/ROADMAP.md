@@ -29,7 +29,7 @@
 
 ### 3.3 定位误差真值度量
 
-- [ ] `bench_localization.py`：订阅 `/gazebo/model_states` + `/amcl_pose`，报 RMSE / P50 / P95
+- [ ] `bench_localization.py`：独立运行 AMCL 后，对齐 `/gazebo/model_states` 真值和 AMCL 位姿，报 RMSE / P50 / P95（默认仿真中的 `/amcl_pose` 是真值，不可直接用于误差评估）
 - [ ] README 增加"定位误差"行，附 n 与采样条件（静态定点 / 动态跟踪分开报）
 
 ---

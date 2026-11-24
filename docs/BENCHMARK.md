@@ -63,10 +63,12 @@ python3 scripts/render_bench_table.py docs/benchmarks/latest.json
 
 ## 扩展度量：定位误差（当前未实现，属于 v0.3）
 
-想要写"定位误差"，必须有真值。仿真里有真值，所以可以做：
+默认仿真启动使用 Gazebo 真值定位，`/amcl_pose` 也是由真值定位节点发布，
+不能把它当作 AMCL 估计值来计算误差。评估 AMCL 时，需要另行启动 AMCL 定位流程，
+再用下面的方式对比：
 
 ```python
-# 伪代码：真值来自 /gazebo/model_states，估计值来自 /amcl_pose
+# 伪代码：真值来自 /gazebo/model_states，估计值来自单独启动的 AMCL
 self.create_subscription(ModelStates, '/gazebo/model_states', self.on_truth, 10)
 self.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', self.on_est, 10)
 
